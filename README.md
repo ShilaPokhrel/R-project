@@ -1,0 +1,404 @@
+
+#Project Summary:
+
+This report begin with presenting the overall overview of the total crop yield per hector and the 
+economic impact across different countries.In detail, the United States data has been tested across different
+crop types and over time. This report presents some statistical analysis including 
+frequency analysis, trend analysis, linear regression model, and correlation tests.  
+
+##Data Variable: 
+
+Year: Year of data collection.
+
+Country: Country name.
+
+Region: Regional designation within the country.
+
+Crop_Type: Type of crop.
+
+Average_Temperature_C: Average temperature in Celsius.
+
+Total_Precipitation_mm: Total precipitation in millimeters.
+
+CO2_Emissions_MT: Carbon dioxide emissions in metric tons.
+
+Crop_Yield_MT_per_HA: Crop yield in metric tons per hectare.
+
+Extreme_Weather_Events: Number of extreme weather events.
+
+Irrigation_Access_%: Percentage access to irrigation.
+
+Pesticide_Use_KG_per_HA: Pesticide usage in kilograms per hectare.
+
+Fertilizer_Use_KG_per_HA: Fertilizer usage in kilograms per hectare.
+
+Soil_Health_Index: Index measuring soil health.
+
+Adaptation_Strategies: Types of adaptation strategies used.
+
+Economic_Impact_Million_USD: Economic impact in million USD.
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(kableExtra)
+library(tidyverse)
+library(readxl)
+library(plotly)
+library(ggrepel)
+library(corrplot)
+library(GGally)     
+library(ggplot2)    
+library(naniar)  
+library(reshape2)
+```
+```{r}
+C_Data <- read.csv("C:\\Users\\spokhre\\Desktop\\PhD_class\\DSC595\\Project_Mid_Spokhre\\DSC595_001_IntroR_Lecture8\\climate_change_impact_on_agriculture_2024.csv")
+```
+
+
+##Summary of the Data
+
+```{r}
+# Summary of the Dataset
+summary(C_Data)          # Summary statistics
+```
+## Overall summary of data: Total Crop yield in MT per HA and Economic Impact in USD by Countries
+
+-Nigeria has highest crop production (2345.53 MT per HA) and has highest economic impact of $719560.3 Million, followed by India which has total crop production of 2305.80 MT per HA with an economic impact of $700498 Million. 
+
+-Brazil has the least crop production among countries with total crop production of 2106.48MT per Ha and economic impact of $637327.8 million. 
+
+```{r}
+# Summarize data: Calculate total crop yield and economic impact by Country
+country_summary <- C_Data %>%
+  group_by(Country) %>%
+  summarise(
+    Total_Crop_Yield_MT_per_HA = sum(Crop_Yield_MT_per_HA, na.rm = TRUE),
+    Mean_Crop_Yield_MT_Per_HA = mean(Crop_Yield_MT_per_HA, na.rm = TRUE),
+    Total_Economic_Impact = sum(Economic_Impact_Million_USD, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Total_Economic_Impact))
+
+# Display the table
+country_summary %>%
+  kable(caption = "Summary of Crop Yield and Economic Impact by Country",
+    digits = 2, # Format numbers to two decimal places
+    align = "lc"
+  )%>%
+kable_minimal(full_width = FALSE)
+
+```
+
+#Averge Crop Yield in MT per Ha by country and crop type
+
+-Barley and Coffee: USA
+
+-Nigeria: Corn,Soybeans, Sugercane and Rice
+
+-Australia: Cotton, Fruits, corns
+
+-Brazil and Canada: wheat
+
+```{r}
+ggplot(C_Data, aes(x = Country, y = Crop_Yield_MT_per_HA, fill = Country)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Crop Yield per Hectare by Country and Crop Type",
+       x = "Country", y = "Crop Yield in MT per Hectare") +
+  facet_wrap(~ Crop_Type) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+## Testing significance of difference in crop yield in MT per HA across different countries
+
+There is no significant differences in Crop yield production among the tested countries.
+
+```{r}
+Crop_Type <- as.factor(C_Data$Country)
+levels(C_Data$Country)
+anova_result0 <- aov(Crop_Yield_MT_per_HA ~ Country, data = C_Data)
+summary(anova_result0)
+
+```
+
+#Total Economic Impact in Million USD by country and crop type
+
+-The trend is quite similar to crop yield. 
+
+-There is no statistically significant differences in economic impact among the different countries. 
+
+```{r}
+ggplot(C_Data, aes(x = Country, y = Economic_Impact_Million_USD, fill = Country)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Economic Impact in Million USD by Country and Crop Type",
+       x = "Country", y = "Economic Impact in Million USD") +
+  facet_wrap(~ Crop_Type) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+##Testing significance of difference in economic impact among the different countries
+
+```{r}
+Crop_Type <- as.factor(C_Data$Country)
+levels(C_Data$Country)
+anova_result01 <- aov(Economic_Impact_Million_USD ~ Country, data = C_Data)
+summary(anova_result01)
+
+```
+
+# Crop yield and economic impact by crop types in USA
+
+-Coffee and vegetables have highest economic impacts in USA
+
+_Wheat has the least impact
+
+```{r}
+library(kableExtra)
+#Filtering the data (I am interested in only USA)
+USA_summary <- C_Data %>%
+  dplyr::filter(Country == "USA") %>%
+  group_by(Crop_Type) %>%
+  summarise(
+    Total_Crop_Yield_MT_Per_HA = sum(Crop_Yield_MT_per_HA, na.rm = TRUE),
+    Avg_Crop_Yield_MT_Per_HA = mean(Crop_Yield_MT_per_HA, na.rm = TRUE),
+    Total_Economic_Impact = sum(Economic_Impact_Million_USD, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Total_Economic_Impact))
+    
+USA_summary %>%
+  kbl(caption = "Crop yield and Economic Impact in USA by Crop type") %>%
+  kable_minimal(full_width = FALSE)
+  
+```
+
+##Crop yield vs average temperature in USA
+
+-Most crops perform better within a temperature range of 15°C to 25°C, with yields declining or plateauing at higher temperatures.
+
+
+```{r}
+#understanding the relationship between crop yield per hectare and average temperature
+C_Data %>%
+  dplyr::filter(Country == "USA") %>%
+  ggplot(aes(x = Average_Temperature_C, y= Crop_Yield_MT_per_HA, color = Crop_Type)) +
+  geom_point(size = 0.05) +
+  ggtitle("Crop yield per hectare vs average temperature in the USA") +
+  geom_smooth() +
+  theme_classic() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~Crop_Type, nrow = 2)
+
+```
+
+#Correlation between different variables
+
+-There is strong positive correlation between crop yield per HA and the economic impacts
+
+-There is positive correlation of crop yield and economic impacts with average temperature 
+
+_There is negative correlation of crop yield and economic impacts with CO2 emissions. 
+
+```{r}
+# Select numeric columns only
+numeric_data <- C_Data %>%
+  dplyr::filter(Country == "USA") %>%
+  select_if(is.numeric)
+
+# Compute the correlation matrix
+correlation_matrix <- cor(numeric_data, use = "complete.obs")
+
+```
+
+
+```{r}
+
+# Melt the correlation matrix for ggplot2
+melted_cor <- melt(correlation_matrix)
+
+# Plot using ggplot2
+ggplot(data = melted_cor, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0,
+                       limit = c(-1, 1), space = "Lab",
+                       name = "Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 10, hjust = 1)) +
+  labs(title = "Correlation Plot climate variables and crops in the USA", x = "", y = "")
+
+```
+
+#Trend Analysis of Crop yield in USA over time
+
+-Barley, Corn, Cotton, and Wheat: These crops show relatively stable trends with some fluctuations.
+
+-Coffee and Fruits: These show more pronounced variability over time.
+
+-Rice and Sugarcane: These crops exhibit periodic fluctuations but remain within a consistent range.
+
+-Vegetables: This category shows irregular and sharp changes in yield over time.
+
+```{r}
+# Trend Comparisons
+# Facet plot to compare trends in yield by crop type across years
+C_Data %>%
+  dplyr::filter(Country == "USA") %>%
+  ggplot(aes(x = Year, y = Crop_Yield_MT_per_HA, color = Crop_Type)) +
+  geom_line() +
+  facet_wrap(~ Crop_Type) + 
+  labs(title = "Crop Yield Over Time by Crop Type", x = "Year", y = "Crop Yield")
+```
+
+##Statistical test of difference in crop yield over the time
+
+These is no significant differences in crop yield in USA over time. 
+
+```{r}
+FM <- C_Data %>%
+  dplyr::filter(Country == "USA")
+FM$Crop_Type <- as.factor(FM$Crop_Type)
+levels(FM$Crop_Type)
+anova_result1 <- aov(Crop_Yield_MT_per_HA ~ Year, data = FM)
+summary(anova_result1)
+```
+
+#Trend analysis of economic impact in million USD by crop types over time
+
+-Most crops shows no clear increasing or decreasing trend in ther economic impact over the years.
+
+For example;
+-Barley displays moderate fluctuations over time, with peak occasionally exceeding $1500 million.
+
+-Coffee is relatively stable compared to other crops, while corn shows the highest peaks among all crops.
+
+-Vegetable has relatively stable trend with only occasional fluctuation.
+
+```{r}
+FM %>%
+  ggplot(aes(x = Year, y = Economic_Impact_Million_USD, color = Crop_Type)) +
+  geom_line() +
+  facet_wrap(~ Crop_Type) + 
+  labs(title = "Economic Impact in Million USD over Time in USA", x = "Year", y = "Economic Impact in Million USD")
+```
+
+##Statistical test of differences in economic impact over the years
+
+-There is no significant differences in economic impact across the time.
+
+```{r}
+FM$Crop_Type <- as.factor(FM$Crop_Type)
+levels(FM$Crop_Type)
+anova_result2 <- aov(Economic_Impact_Million_USD ~ Year, data = FM)
+summary(anova_result2)
+```
+
+#Multiple Linear Regression Model
+
+_To understand the influences of multiple factors in crop yield and economic impact
+
+-Only the average temperature and Co2 emissions are found to have significant influence in crop yield and economic impact.
+
+-The very low value of adjusted R2 indicates the poor performance of the linear model 
+
+```{r} 
+#Model 1 showing the relationship between crop yield per hectare and climate variables
+Model1 <- lm(FM$Crop_Yield_MT_per_HA ~ FM$Average_Temperature_C + FM$Total_Precipitation_mm + FM$CO2_Emissions_MT + FM$Extreme_Weather_Events + FM$Irrigation_Access_. +FM$Pesticide_Use_KG_per_HA +FM$Soil_Health_Index)
+summary(Model1)
+```
+
+```{r}
+## Analysing the different variables affecting the economic impact in USA
+Model2 <- lm(FM$Economic_Impact_Million_USD ~ FM$Average_Temperature_C + FM$Total_Precipitation_mm + FM$CO2_Emissions_MT + FM$Extreme_Weather_Events + FM$Irrigation_Access_. +FM$Pesticide_Use_KG_per_HA +FM$Soil_Health_Index)
+summary(Model2)
+```
+
+##Checking the normality
+
+-The histogram and normal Q_Q plot show quite linear relationship in the data, 
+however, the sapiro test confirms that data is not normal. 
+
+-It suggests to look for other non linear model for the improved performance. 
+
+```{r}
+# Histogram
+hist(FM$Crop_Yield_MT_per_HA, 
+     main = "Histogram of Crop yield", 
+     xlab = "Crop yield MT per HA", 
+     col = "lightblue", 
+     border = "black")
+
+
+# Q-Q Plot
+qqnorm(FM$Crop_Yield_MT_per_HA)
+qqline(FM$Crop_Yield_MT_per_HA, col = "red")
+
+shapiro.test(FM$Crop_Yield_MT_per_HA)
+
+```
+
+```{r}
+# Histogram
+hist(FM$Economic_Impact_Million_USD, 
+     main = "Histogram of Economic Impact", 
+     xlab = "Economic Impact (Million USD)", 
+     col = "lightblue", 
+     border = "black")
+
+
+# Q-Q Plot
+qqnorm(FM$Economic_Impact_Million_USD)
+qqline(FM$Economic_Impact_Million_USD, col = "red")
+
+shapiro.test(FM$Economic_Impact_Million_USD)
+
+```
+
+# Testing the significance of differences in crop yield accross the crop type
+
+-There is no significant differences in crop yield in USA across the different crop types.
+
+```{r}
+FM$Crop_Type <- as.factor(FM$Crop_Type)
+levels(FM$Crop_Type)
+anova_result <- aov(Crop_Yield_MT_per_HA ~ Crop_Type, data = FM)
+summary(anova_result)
+
+
+# Boxplot of crop yield across crop types
+ggplot(FM, aes(x = Crop_Type, y = Crop_Yield_MT_per_HA, color = Crop_Type)) +
+  geom_boxplot() +
+  labs(title = "Crop Yield in MT per HA in USA by Crop Type", x = "Crop Type", y = "Crop Yield (MT/HA)") +
+  theme_minimal()
+
+```
+
+#Testing the statistical significance in economic impact due to different crop types
+
+-There is no statistical differences in economic impact in USA due to different types of crops. 
+
+```{r}
+anova_result2 <- aov(Economic_Impact_Million_USD ~ Crop_Type, data = FM)
+summary(anova_result2)
+
+# Boxplot of crop yield across crop types
+ggplot(FM, aes(x = Crop_Type, y = Economic_Impact_Million_USD, color = Crop_Type)) +
+  geom_boxplot() +
+  labs(title = "Economic Impact by Crop Type in USA", x = "Crop Type", y = "Economic Impact in Million USD") +
+  theme_minimal()
+
+```
+
+# Conclusion
+
+Overall, Nigeria produces high crop per HA and has highest economic impact, followed by India.
+However, there is no statistically significant differences among the countries. 
+
+In case of USA, Coffee is the highly produced crop with highest economic impact followed by vegetables. 
+However, there is no statistical differences in crop yield and economic impact due to different crops types and in different time. 
+In this data multiple linear regression does not perform well, so we can not make any generalization about the impacts of different climatic and environmental variables in crop productions and economic impacts in the United State.  
